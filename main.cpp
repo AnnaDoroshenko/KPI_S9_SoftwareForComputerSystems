@@ -4,9 +4,10 @@
 #include <vector>
 #include <string>
 #include <cctype>
+#include <stdlib.h>
 
 
-enum TokenType {NUMBER, VARIABLE, ADDITION, SUBTRACTION, MODULO, MULTIPLICATION,
+enum TokenType {INTEGER, FLOAT, VARIABLE, ADDITION, SUBTRACTION, MODULO, MULTIPLICATION,
     DIVISION, SEMICOLON, ASSIGNMENT, LEFT_BRACE, RIGHT_BRACE};
 
 
@@ -14,7 +15,8 @@ std::ostream& operator<<(std::ostream& os, TokenType type)
 {
     switch(type)
     {
-        case NUMBER : os << "number"; break;
+        case INTEGER : os << "integer"; break;
+        case FLOAT : os << "float"; break;
         case VARIABLE : os << "variable"; break;
         case ADDITION : os << "addition"; break;
         case SUBTRACTION : os << "subtraction"; break;
@@ -33,36 +35,95 @@ struct Token {
     private:
         std::string value;
         TokenType type;
+        unsigned int posion;
 
     public:
-        Token(std::string value, TokenType type) {
+        Token(std::string value, TokenType type, unsigned int posion) {
             this->value = value;
             this->type = type;
+            this->posion = posion;
         };
 
         friend std::ostream& operator<<(std::ostream& os, const Token& token) {
-            os << token.value << " - " << token.type;
+            os << token.value << " - " << token.type << " [" << token.posion << "]";
             return os;
         }
 };
+
+
+bool isToken (char& ch) {
+    return ((ch == '=') || (ch == '+') || (ch == '-') || (ch == '%') ||
+            (ch == '*') || (ch == '/') || (ch == '(') || (ch == ')') ||
+            (ch == ';') || (ch == ' ') || (ch == '\n'));
+}
 
 
 std::vector<Token> getTokens (std::string& input) {
     unsigned int inputSize = input.size();
     std::vector<Token> tokens;
 
+    const auto pushToken = [&tokens](char c, TokenType type, unsigned int pos) {
+        tokens.push_back({std::string(1, c), type, pos});
+    };
     for (unsigned int i = 0; i < inputSize; i++) {
         char currentChar = input[i];
-        if (currentChar == '=') tokens.push_back({std::string(1, currentChar), TokenType::ASSIGNMENT});
-        else if (currentChar == '+') tokens.push_back({std::string(1, currentChar), TokenType::ADDITION});
-        else if (currentChar == '-') tokens.push_back({std::string(1, currentChar), TokenType::SUBTRACTION});
-        else if (currentChar == '%') tokens.push_back({std::string(1, currentChar), TokenType::MODULO});
-        else if (currentChar == '*') tokens.push_back({std::string(1, currentChar), TokenType::MULTIPLICATION});
-        else if (currentChar == '/') tokens.push_back({std::string(1, currentChar), TokenType::DIVISION});
-        else if (currentChar == '(') tokens.push_back({std::string(1, currentChar), TokenType::RIGHT_BRACE});
-        else if (currentChar == ')') tokens.push_back({std::string(1, currentChar), TokenType::LEFT_BRACE});
-        else if (currentChar == ';') tokens.push_back({std::string(1, currentChar), TokenType::SEMICOLON});
-        else if (isalpha(currentChar)) tokens.push_back({std::string(1, currentChar), TokenType::VARIABLE});
+        if (currentChar == '=') pushToken(currentChar, TokenType::ASSIGNMENT, i);
+        else if (currentChar == '+') pushToken(currentChar, TokenType::ADDITION, i);
+        else if (currentChar == '-') pushToken(currentChar, TokenType::SUBTRACTION, i);
+        else if (currentChar == '%') pushToken(currentChar, TokenType::MODULO, i);
+        else if (currentChar == '*') pushToken(currentChar, TokenType::MULTIPLICATION, i);
+        else if (currentChar == '/') pushToken(currentChar, TokenType::DIVISION, i);
+        else if (currentChar == '(') pushToken(currentChar, TokenType::RIGHT_BRACE, i);
+        else if (currentChar == ')') pushToken(currentChar, TokenType::LEFT_BRACE, i);
+        else if (currentChar == ';') pushToken(currentChar, TokenType::SEMICOLON, i);
+        else if ((currentChar == ' ') || (currentChar == '\n')) continue;
+        else if (isalpha(currentChar)) {
+            std::string var = std::string(1, currentChar);
+            unsigned int count = 0;
+            for (unsigned int pos = i; pos < inputSize; pos++) {
+                if ((pos+1 == inputSize) || isToken(input[pos+1])) {
+                    tokens.push_back({var, TokenType::VARIABLE, pos-count});
+                    break;
+                } else if (isalpha(input[pos+1]) || isdigit(input[pos+1])) {
+                    var.push_back(input[pos+1]);
+                    count++;
+                } else {
+                    var.push_back(input[pos+1]);
+                    count++;
+                    std::cerr << "Invalid variable name at " << pos+1-count << std::endl;
+                    exit(0);
+                }
+            }
+            i += count;
+        } else if (isdigit(currentChar)) {
+            bool isDot = false;
+            std::string num = std::string(1, currentChar);
+            unsigned int count = 0;
+            for (unsigned int pos = i; pos < inputSize; pos++) {
+                if ((pos+1 == inputSize) || isToken(input[pos+1])) {
+                    TokenType currType = (isDot) ? TokenType::FLOAT : TokenType::INTEGER;
+                    tokens.push_back({num, currType, pos-count});
+                    break;
+                } else if (isdigit(input[pos+1])) {
+                    num.push_back(input[pos+1]);
+                    count++;
+                } else if (input[pos+1] == '.') {
+                    if (!isDot) isDot = true;
+                    else {
+                        std::cerr << "Invalid number format at " << pos-count << std::endl;
+                        exit(0);
+                    }
+                    num.push_back(input[pos+1]);
+                    count++;
+                } else {
+                    num.push_back(input[pos+1]);
+                    count++;
+                    std::cerr << "Invalid number format at " << pos+1-count << std::endl;
+                    exit(0);
+                }
+            }
+            i += count;
+        }
     }
 
     for (unsigned int t = 0; t < tokens.size(); t++) {
