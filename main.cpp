@@ -35,17 +35,25 @@ struct Token {
     private:
         std::string value;
         TokenType type;
-        unsigned int posion;
+        unsigned int position;
 
     public:
-        Token(std::string value, TokenType type, unsigned int posion) {
+        Token(std::string value, TokenType type, unsigned int position) {
             this->value = value;
             this->type = type;
-            this->posion = posion;
+            this->position = position;
         };
 
+        std::string getValue() {
+            return this->value;
+        }
+
+        unsigned int getPosition() {
+            return this->position;
+        }
+
         friend std::ostream& operator<<(std::ostream& os, const Token& token) {
-            os << token.value << " - " << token.type << " [" << token.posion << "]";
+            os << token.value << " - " << token.type << " [" << token.position << "]";
             return os;
         }
 };
@@ -126,11 +134,28 @@ std::vector<Token> getTokens (std::string& input) {
         }
     }
 
-    for (unsigned int t = 0; t < tokens.size(); t++) {
-        std::cout << tokens[t] << std::endl;
-    }
 
     return tokens;
+}
+
+
+void checkBraces (std::vector<Token>& tokens) {
+    std::vector<Token> braces;
+    for (unsigned int token = 0; token < tokens.size(); token++) {
+        Token currentToken = tokens.at(token);
+        if (currentToken.getValue() == "(") braces.push_back(currentToken);
+        else if (currentToken.getValue() == ")") {
+            if (!braces.empty()) braces.pop_back();
+            else {
+                std::cerr << "Missed left brace for [" << currentToken.getPosition() << "]" << std::endl;
+                exit(0);
+            }
+        }
+    }
+    if (!braces.empty()) {
+        std::cerr << "Missed right brace for [" << braces.back().getPosition() << "]" << std::endl;
+        exit(0);
+    }
 }
 
 
@@ -141,7 +166,13 @@ int main() {
 
     // std::cout << ss.str() << std::endl;
     std::string str = ss.str();
-    getTokens(str);
+    std::vector tokens = getTokens(str);
+
+    /* for (unsigned int t = 0; t < tokens.size(); t++) { */
+    /*     std::cout << tokens.at(t) << std::endl; */
+    /* } */
+
+    checkBraces(tokens);
 
     return 0;
 }
