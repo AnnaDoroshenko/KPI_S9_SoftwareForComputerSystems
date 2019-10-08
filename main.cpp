@@ -2,9 +2,11 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <algorithm>
 #include <string>
 #include <cctype>
 #include <stdlib.h>
+#include <unordered_map>
 
 
 enum TokenType {INTEGER, FLOAT, VARIABLE, ADDITION, SUBTRACTION, MODULO, MULTIPLICATION,
@@ -48,6 +50,10 @@ struct Token {
             return this->value;
         }
 
+        TokenType getType() {
+            return this->type;
+        }
+
         unsigned int getPosition() {
             return this->position;
         }
@@ -59,14 +65,14 @@ struct Token {
 };
 
 
-bool isToken (char& ch) {
+bool isToken (const char& ch) {
     return ((ch == '=') || (ch == '+') || (ch == '-') || (ch == '%') ||
             (ch == '*') || (ch == '/') || (ch == '(') || (ch == ')') ||
             (ch == ';') || (ch == ' ') || (ch == '\n'));
 }
 
 
-std::vector<Token> getTokens (std::string& input) {
+std::vector<Token> getTokens (const std::string& input) {
     unsigned int inputSize = input.size();
     std::vector<Token> tokens;
 
@@ -139,7 +145,7 @@ std::vector<Token> getTokens (std::string& input) {
 }
 
 
-void checkBraces (std::vector<Token>& tokens) {
+void checkBraces (const std::vector<Token>& tokens) {
     std::vector<Token> braces;
     for (unsigned int token = 0; token < tokens.size(); token++) {
         Token currentToken = tokens.at(token);
@@ -155,6 +161,61 @@ void checkBraces (std::vector<Token>& tokens) {
     if (!braces.empty()) {
         std::cerr << "Missed right brace for [" << braces.back().getPosition() << "]" << std::endl;
         exit(0);
+    }
+}
+
+
+typedef std::vector<TokenType> TokenList;
+
+bool isValid(std::unordered_map<TokenType, TokenList>& tokenMap, const TokenType& current, const TokenType& previous){
+    std::vector<TokenType> validTokens = tokenMap[current];
+    return (std::find(validTokens.begin(), validTokens.end(), previous));
+}
+
+
+void checkOrder (const std::vector<Token>& tokens) {
+    /* typedef std::vector<TokenType> TokenList; */
+    std::unordered_map<TokenType, TokenList> tokenMap;
+    tokenMap[TokenType::INTEGER] = {TokenType::ADDITION, TokenType::SUBTRACTION,
+        TokenType::MODULO, TokenType::MULTIPLICATION, TokenType::DIVISION,
+        TokenType::ASSIGNMENT, TokenType::LEFT_BRACE};
+    tokenMap[TokenType::FLOAT] = {TokenType::ADDITION, TokenType::SUBTRACTION,
+        TokenType::MODULO, TokenType::MULTIPLICATION, TokenType::DIVISION,
+        TokenType::ASSIGNMENT, TokenType::LEFT_BRACE};
+    tokenMap[TokenType::VARIABLE] = {TokenType::ADDITION, TokenType::SUBTRACTION,
+        TokenType::MODULO, TokenType::MULTIPLICATION, TokenType::DIVISION,
+        TokenType::ASSIGNMENT, TokenType::LEFT_BRACE};
+    tokenMap[TokenType::ADDITION] = {TokenType::INTEGER, TokenType::FLOAT,
+        TokenType::VARIABLE, TokenType::ADDITION, TokenType::SUBTRACTION,
+        TokenType::LEFT_BRACE, TokenType::LEFT_BRACE};
+    tokenMap[TokenType::SUBTRACTION] = {TokenType::INTEGER, TokenType::FLOAT,
+        TokenType::VARIABLE, TokenType::ADDITION, TokenType::SUBTRACTION,
+        TokenType::LEFT_BRACE, TokenType::LEFT_BRACE};
+    tokenMap[TokenType::MODULO] = {TokenType::INTEGER, TokenType::FLOAT,
+        TokenType::VARIABLE, TokenType::RIGHT_BRACE};
+    tokenMap[TokenType::MULTIPLICATION] = {TokenType::INTEGER, TokenType::FLOAT,
+        TokenType::VARIABLE, TokenType::RIGHT_BRACE};
+    tokenMap[TokenType::DIVISION] = {TokenType::INTEGER, TokenType::FLOAT,
+        TokenType::VARIABLE, TokenType::RIGHT_BRACE};
+    tokenMap[TokenType::SEMICOLON] = {TokenType::INTEGER, TokenType::FLOAT,
+        TokenType::VARIABLE, TokenType::RIGHT_BRACE};
+    tokenMap[TokenType::ASSIGNMENT] = {TokenType::VARIABLE};
+    tokenMap[TokenType::LEFT_BRACE] = {TokenType::ADDITION, TokenType::SUBTRACTION,
+        TokenType::MODULO, TokenType::MULTIPLICATION, TokenType::DIVISION,
+        TokenType::ASSIGNMENT, TokenType::LEFT_BRACE};
+    tokenMap[TokenType::RIGHT_BRACE] = {TokenType::INTEGER, TokenType::FLOAT,
+        TokenType::VARIABLE, TokenType::RIGHT_BRACE};
+
+    Token previousToken = tokens.at(0);
+    TokenType previousType = previousToken.getType();
+    for (unsigned int i = 1; i < tokens.size(); i++) {
+        Token currentToken = tokens.at(i);
+        TokenType currentType = currentToken.getType();
+        if (!isValid(currentType, previousType)) {
+            std::cerr << "Invalid token after token at [" << previousToken.getPosition() << "]" << std::endl;
+            exit(0);
+        }
+        previousToken = currentToken;
     }
 }
 
