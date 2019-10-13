@@ -7,6 +7,7 @@
 #include <cctype>
 #include <stdlib.h>
 #include <unordered_map>
+#include <optional>
 
 
 enum class TokenType {INTEGER, FLOAT, VARIABLE, ADDITION, SUBTRACTION, MODULO,
@@ -56,12 +57,14 @@ struct Token {
             return position;
         }
 
-        std::ostream& operator<<(std::ostream& os) {
-            os << value << " - " << type << " [" << position << "]";
-            return os;
-        }
+        friend std::ostream& operator<<(std::ostream& os, const Token& token);
 };
 
+
+std::ostream& operator<<(std::ostream& os, const Token& token) {
+    os << token.value << " - " << token.type << " [" << token.position << "]";
+    return os;
+}
 
 
 bool isToken (char ch) {
@@ -71,7 +74,7 @@ bool isToken (char ch) {
 }
 
 
-std::vector<Token> getTokens (const std::string& input) {
+std::optional<std::vector<Token>> getTokens (const std::string& input) {
     const unsigned int inputSize = input.size();
     std::vector<Token> tokens;
 
@@ -103,8 +106,8 @@ std::vector<Token> getTokens (const std::string& input) {
                 } else {
                     var.push_back(input[pos+1]);
                     count++;
-                    std::cerr << "Invalid variable name at " << pos+1-count << std::endl;
-                    exit(0);
+                    std::cout << "Invalid variable name at " << (pos+1-count) << std::endl;
+                    return {};
                 }
             }
             i += count;
@@ -123,18 +126,18 @@ std::vector<Token> getTokens (const std::string& input) {
                 } else if (input[pos+1] == '.') {
                     if (!isDot) isDot = true;
                     else {
-                        std::cerr << "Invalid number format at ["
-                            << pos-count << "]" << std::endl;
-                        exit(-1);
+                        std::cout << "Invalid number format at ["
+                            << (pos-count) << "]" << std::endl;
+                        return {};
                     }
                     num.push_back(input[pos+1]);
                     count++;
                 } else {
                     num.push_back(input[pos+1]);
                     count++;
-                    std::cerr << "Invalid number format at ["
-                        << pos+1-count << "]" << std::endl;
-                    exit(-1);
+                    std::cout << "Invalid number format at ["
+                        << (pos+1-count) << "]" << std::endl;
+                    return {};
                 }
             }
             i += count;
@@ -143,6 +146,7 @@ std::vector<Token> getTokens (const std::string& input) {
 
     if (tokens.back().getType() != TokenType::SEMICOLON) {
         std::cout << "Missed semicolon in the end of sequence" << std::endl;
+        return {};
     }
 
 
@@ -150,25 +154,27 @@ std::vector<Token> getTokens (const std::string& input) {
 }
 
 
-void checkBraces (const std::vector<Token>& tokens) {
+bool checkBraces (const std::vector<Token>& tokens) {
     using Position = unsigned int;
     std::vector<Position> braces;
     for (const auto& currentToken : tokens) {
         if (currentToken.getValue() == "(") braces.push_back(currentToken.getPosition());
         else if (currentToken.getValue() == ")") {
             if (braces.empty()) {
-                std::cerr << "Missed left brace for ["
+                std::cout << "Missed left brace for ["
                     << currentToken.getPosition() << "]" << std::endl;
-                exit(-1);
+                return false;
             }
             braces.pop_back();
         }
     }
     if (!braces.empty()) {
-        std::cerr << "Missed right brace for ["
+        std::cout << "Missed right brace for ["
             << braces.back() << "]" << std::endl;
-        exit(0);
+        return false;
     }
+
+    return true;
 }
 
 
@@ -182,7 +188,7 @@ bool isValid(std::unordered_map<TokenType, TokenList>& tokenMap,
 }
 
 
-void checkOrder (const std::vector<Token>& tokens) {
+bool checkOrder (const std::vector<Token>& tokens) {
     std::unordered_map<TokenType, TokenList> tokenMap;
     tokenMap[TokenType::INTEGER] = {TokenType::ADDITION, TokenType::SUBTRACTION,
         TokenType::MODULO, TokenType::MULTIPLICATION, TokenType::DIVISION,
@@ -220,13 +226,15 @@ void checkOrder (const std::vector<Token>& tokens) {
         Token currentToken = tokens.at(i);
         TokenType currentType = currentToken.getType();
         if (!isValid(tokenMap, currentType, previousType)) {
-            std::cerr << "Invalid type " << currentType << " after " << previousType
+            std::cout << "Invalid type " << currentType << " after " << previousType
                 << " at [" << previousToken.getPosition() << "]" << std::endl;
-            exit(0);
+            return false;
         }
         previousToken = currentToken;
         previousType = currentType;
     }
+
+    return true;
 }
 
 
@@ -270,16 +278,19 @@ int main() {
 
     std::string str = ss.str();
     std::cout << "Input: " << str << std::endl;
-    std::vector tokens = getTokens(str);
+    std::optional<std::vector<Token>> tokensOpt = getTokens(str);
 
-    /* for (unsigned int t = 0; t < tokens.size(); t++) { */
-    /*     std::cout << tokens.at(t) << std::endl; */
-    /* } */
+    if (!tokensOpt) return -1;
 
-    checkBraces(tokens);
-    checkOrder(tokens);
-    checkSigns(tokens);
+    const auto tokens = *tokensOpt;
 
+    if (!checkBraces(tokens)) return -1;
+    if (!checkOrder(tokens)) return -1;
+    if (!checkSigns(tokens)) return -1;
+
+    for (unsigned int t = 0; t < tokens.size(); t++) {
+        std::cout << tokens.at(t) << std::endl;
+    }
 
     return 0;
 }
